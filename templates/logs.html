@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Internet Archive Downloader - Logs{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Log Files</h2>
+        <p class="lead">
+            View log files from download operations.
+        </p>
+        <hr>
+        
+        {% if log_files %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Log File</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log_file in log_files %}
+                            <tr>
+                                <td>{{ log_file }}</td>
+                                <td>
+                                    {% if 'debug' in log_file %}
+                                        <span class="badge bg-secondary">Debug</span>
+                                    {% elif 'info' in log_file %}
+                                        <span class="badge bg-info">Info</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Log</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% set date_parts = log_file.split('_', 2) %}
+                                    {% if date_parts|length >= 2 %}
+                                        {{ date_parts[0][:4] }}-{{ date_parts[0][4:6] }}-{{ date_parts[0][6:] }}
+                                        {{ date_parts[1][:2] }}:{{ date_parts[1][2:4] }}:{{ date_parts[1][4:] }}
+                                    {% else %}
+                                        Unknown
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('view_log', filename=log_file) }}" class="btn btn-sm btn-primary">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                No log files found.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

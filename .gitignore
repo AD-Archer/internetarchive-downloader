@@ -163,3 +163,8 @@ cython_debug/
 Dockerfile
 # project specific
 ia_downloader_logs/
+
+# Internet Archive Downloader specific
+downloads/
+ia_downloader_logs/
+*.log

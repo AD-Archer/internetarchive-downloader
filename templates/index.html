@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Internet Archive Downloader - Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="jumbotron bg-light p-5 rounded">
+            <h1 class="display-4">Internet Archive Downloader</h1>
+            <p class="lead">
+                A web interface for downloading files from Internet Archive with multithreading, 
+                resumable downloads, and hash verification.
+            </p>
+            <hr class="my-4">
+            <p>
+                This application allows you to download individual Internet Archive items or all items 
+                returned from an archive.org search. It supports multithreaded downloads, resuming 
+                interrupted downloads, and verifying file integrity.
+            </p>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                <a href="{{ url_for('download') }}" class="btn btn-primary btn-lg me-md-2">Start Download</a>
+                <a href="{{ url_for('verify') }}" class="btn btn-secondary btn-lg">Verify Downloads</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Download Items</h5>
+                <p class="card-text">
+                    Download files from Internet Archive items using their unique identifiers or search terms.
+                </p>
+                <a href="{{ url_for('download') }}" class="btn btn-primary">Go to Download</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Verify Downloads</h5>
+                <p class="card-text">
+                    Verify that previously downloaded files match the MD5 hash values reported by Internet Archive.
+                </p>
+                <a href="{{ url_for('verify') }}" class="btn btn-primary">Go to Verify</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">View Status</h5>
+                <p class="card-text">
+                    Check the status of current and past download tasks.
+                </p>
+                <a href="{{ url_for('status_list') }}" class="btn btn-primary">View Status</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

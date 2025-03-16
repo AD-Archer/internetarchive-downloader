@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Internet Archive Downloader - Download{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Download Internet Archive Items</h2>
+        <p class="lead">
+            Enter Internet Archive item identifiers or search terms to download files.
+        </p>
+        <hr>
+        
+        <form method="POST" action="{{ url_for('download') }}">
+            {{ form.csrf_token }}
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5>What to Download</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="{{ form.identifiers.id }}" class="form-label">
+                                    {{ form.identifiers.label.text }}
+                                </label>
+                                {{ form.identifiers(class="form-control", rows=5, placeholder="Enter one identifier per line (e.g. gov.archives.arc.1155023)") }}
+                                <div class="form-text">
+                                    Find identifiers in the URL of Internet Archive items (e.g. archive.org/details/<strong>identifier</strong>)
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.search_terms.id }}" class="form-label">
+                                    {{ form.search_terms.label.text }}
+                                </label>
+                                {{ form.search_terms(class="form-control", rows=5, placeholder='Enter one search term per line (e.g. "collection:(nasa) AND date:1975-11-13")') }}
+                                <div class="form-text">
+                                    Build search terms using the <a href="https://archive.org/advancedsearch.php" target="_blank">archive.org advanced search page</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5>Download Options</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="{{ form.output_folder.id }}" class="form-label">
+                                    {{ form.output_folder.label.text }}
+                                </label>
+                                {{ form.output_folder(class="form-control", placeholder="Folder name for downloads") }}
+                                <div class="form-text">
+                                    Files will be saved in this folder under the downloads directory
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.thread_count.id }}" class="form-label">
+                                            {{ form.thread_count.label.text }}
+                                        </label>
+                                        {{ form.thread_count(class="form-control", min=1, max=5) }}
+                                        <div class="form-text">
+                                            Number of simultaneous downloads (1-5)
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.split_count.id }}" class="form-label">
+                                            {{ form.split_count.label.text }}
+                                        </label>
+                                        {{ form.split_count(class="form-control", min=1, max=5) }}
+                                        <div class="form-text">
+                                            Split large files into chunks (1-5)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.file_filters.id }}" class="form-label">
+                                    {{ form.file_filters.label.text }}
+                                </label>
+                                {{ form.file_filters(class="form-control", placeholder="e.g. mp4 mpeg jpg") }}
+                                <div class="form-text">
+                                    Only download files containing these strings (space separated)
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                {{ form.invert_file_filtering(class="form-check-input") }}
+                                <label class="form-check-label" for="{{ form.invert_file_filtering.id }}">
+                                    {{ form.invert_file_filtering.label.text }}
+                                </label>
+                                <div class="form-text">
+                                    If checked, files matching filters will be excluded
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Download Behavior</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3 form-check">
+                                {{ form.verify(class="form-check-input") }}
+                                <label class="form-check-label" for="{{ form.verify.id }}">
+                                    {{ form.verify.label.text }}
+                                </label>
+                                <div class="form-text">
+                                    Verify file integrity with MD5 hash after download
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                {{ form.resume(class="form-check-input") }}
+                                <label class="form-check-label" for="{{ form.resume.id }}">
+                                    {{ form.resume.label.text }}
+                                </label>
+                                <div class="form-text">
+                                    Resume downloads if interrupted
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                {{ form.cache_refresh(class="form-check-input") }}
+                                <label class="form-check-label" for="{{ form.cache_refresh.id }}">
+                                    {{ form.cache_refresh.label.text }}
+                                </label>
+                                <div class="form-text">
+                                    Refresh cached Internet Archive metadata
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Internet Archive Credentials (Optional)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="{{ form.credentials_email.id }}" class="form-label">
+                                    {{ form.credentials_email.label.text }}
+                                </label>
+                                {{ form.credentials_email(class="form-control", placeholder="Email address") }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.credentials_password.id }}" class="form-label">
+                                    {{ form.credentials_password.label.text }}
+                                </label>
+                                {{ form.credentials_password(class="form-control", type="password", placeholder="Password") }}
+                                <div class="form-text">
+                                    Required for some restricted items
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  web:
+    build: .
+    ports:
+      - "9902:9902"
+    volumes:
+      - ./ia_downloader_logs:/app/ia_downloader_logs
+      - /mnt/jellyfin:/jellyfin
+      - /mnt/jellyfin/downloads:/downloads
+    environment:
+      - SECRET_KEY=change_this_in_production
+    restart: unless-stopped 

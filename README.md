@@ -1,20 +1,63 @@
 # Internet Archive Downloader
 
-This Python script uses multithreading and multiprocessing in conjunction with the [Internet Archive Python Library](https://archive.org/services/docs/api/internetarchive/) to provide bulk downloads of files associated with Internet Archive ([archive.org](https://archive.org/)) items and collections, with optional interrupted download resumption and file hash verification. Wayback Machine ([web.archive.org](https://web.archive.org/)) pages are not supported by this script.
+This Python application uses multithreading and multiprocessing in conjunction with the [Internet Archive Python Library](https://archive.org/services/docs/api/internetarchive/) to provide bulk downloads of files associated with Internet Archive ([archive.org](https://archive.org/)) items and collections, with optional interrupted download resumption and file hash verification. Wayback Machine ([web.archive.org](https://web.archive.org/)) pages are not supported by this application.
+
+The application is available both as a command-line script and as a web interface built with Flask.
 
 ## Getting started
 
 ### Prerequisites
 
-Python 3.7 or later is required, with the Internet Archive Python Library installed ([Internet Archive Python Library installation instructions](https://archive.org/services/docs/api/internetarchive/installation.html)).
+Python 3.7 or later is required, with the Internet Archive Python Library and Flask installed. The application now uses [uv](https://github.com/astral-sh/uv), a fast Python package installer, to manage dependencies. The installation scripts will automatically install uv if it's not already present.
 
-This script has been tested with macOS 11.6 (using Python >= 3.7 installed using [Homebrew](https://brew.sh/)), Ubuntu 20.04, and Windows 10 20H2.
+You can install all required dependencies using the provided scripts:
+
+```bash
+# On Unix/macOS
+./run.sh
+
+# On Windows
+run.bat
+```
+
+Or manually with:
+
+```bash
+# Install uv
+curl -sSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv pip install -r requirements.txt
+```
+
+This application has been tested with macOS 11.6 (using Python >= 3.7 installed using [Homebrew](https://brew.sh/)), Ubuntu 20.04, and Windows 10 20H2.
+
+### Web Interface
+
+To start the web interface, run:
+
+```
+python app.py
+```
+
+Then open your browser and navigate to http://127.0.0.1:5000/
+
+The web interface provides the following features:
+- Download files from Internet Archive items using identifiers or search terms
+- Verify previously downloaded files
+- Monitor download progress
+- View log files
+- Configure all download options available in the command-line version
+
+### Command-Line Interface
+
+The command-line interface provides the same functionality as the web interface but can be used in scripts or terminal environments.
 
 ### Download options
 
 You can download individual Internet Archive item(s), and/or all items returned from an [archive.org search](https://archive.org/advancedsearch.php). An item is [defined within Internet Archive documentation](https://archive.org/services/docs/api/items.html) as:
 
-> Archive.org is made up of “items”. An item is a logical “thing” that we represent on one web page on archive.org. An item can be considered as a group of files ... an item can be a book, a song, an album, a dataset, a movie, an image or set of images, etc.
+> Archive.org is made up of "items". An item is a logical "thing" that we represent on one web page on archive.org. An item can be considered as a group of files ... an item can be a book, a song, an album, a dataset, a movie, an image or set of images, etc.
 
 #### Downloading individual Internet Archive item(s)
 
@@ -90,6 +133,35 @@ The available flags can be viewed using: `python3 ia_downloader.py verify --help
 Usage example incorporating flags:
 
     python3 ia_downloader.py verify space_videos -i gov.archives.arc.1155023 --hashfile space_videos/20210601_155025_ia_downloader_hashes.txt -f mpeg mp4
+
+## Troubleshooting
+
+### Dependency Issues
+
+If you encounter dependency issues, try using the update scripts to reinstall dependencies with the correct versions:
+
+```bash
+# On Unix/macOS
+./update.sh
+
+# On Windows
+update.bat
+```
+
+### Common Issues
+
+1. **ImportError: cannot import name 'url_encode' from 'werkzeug.urls'**: This is caused by incompatible versions of Werkzeug and Flask-WTF. The update scripts will fix this by installing compatible versions.
+
+2. **Permission denied when running scripts**: Make sure the scripts are executable:
+   ```bash
+   chmod +x run.sh update.sh
+   ```
+
+3. **Virtual environment issues**: If you encounter problems with the virtual environment, try removing it and letting the scripts create a new one:
+   ```bash
+   rm -rf venv
+   ./run.sh
+   ```
 
 ## Privacy, log data, and uninstallation
 

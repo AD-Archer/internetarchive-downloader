@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Internet Archive Downloader - View Log{% endblock %}
+
+{% block head %}
+<style>
+    .log-container {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    .log-line {
+        margin: 0;
+        padding: 2px 0;
+    }
+    .log-line:hover {
+        background-color: #e9ecef;
+    }
+    .log-warning {
+        color: #856404;
+        background-color: #fff3cd;
+    }
+    .log-error {
+        color: #721c24;
+        background-color: #f8d7da;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Log File: {{ filename }}</h2>
+        <p class="lead">
+            Viewing contents of log file.
+        </p>
+        <hr>
+        
+        <div class="mb-3">
+            <a href="{{ url_for('logs') }}" class="btn btn-secondary">Back to Logs</a>
+        </div>
+        
+        <div class="log-container">
+            {% for line in content.split('\n') %}
+                <div class="log-line {% if 'WARNING' in line %}log-warning{% elif 'ERROR' in line %}log-error{% endif %}">
+                    {{ line }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

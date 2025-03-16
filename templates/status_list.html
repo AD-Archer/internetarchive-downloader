@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Internet Archive Downloader - Status{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Download Tasks</h2>
+        <p class="lead">
+            View the status of all download tasks.
+        </p>
+        <hr>
+        
+        {% if tasks %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Task ID</th>
+                            <th>Status</th>
+                            <th>Start Time</th>
+                            <th>End Time</th>
+                            <th>Items</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task_id, task in tasks.items() %}
+                            <tr>
+                                <td>{{ task_id }}</td>
+                                <td>
+                                    {% if task.status == 'queued' %}
+                                        <span class="badge bg-secondary">Queued</span>
+                                    {% elif task.status == 'running' %}
+                                        <span class="badge bg-primary">Running</span>
+                                    {% elif task.status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% elif task.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ task.start_time.split('T')[0] }} {{ task.start_time.split('T')[1].split('.')[0] }}</td>
+                                <td>
+                                    {% if task.end_time %}
+                                        {{ task.end_time.split('T')[0] }} {{ task.end_time.split('T')[1].split('.')[0] }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.identifiers %}
+                                        <small>{{ task.identifiers|length }} identifier(s)</small>
+                                    {% endif %}
+                                    {% if task.search_terms %}
+                                        <small>{{ task.search_terms|length }} search term(s)</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('status', task_id=task_id) }}" class="btn btn-sm btn-primary">Details</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                No download tasks have been started yet.
+            </div>
+        {% endif %}
+        
+        <div class="mt-4">
+            <a href="{{ url_for('download') }}" class="btn btn-primary">Start New Download</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh the page every 10 seconds if there are running tasks
+    {% if tasks and 'running' in tasks.values()|map(attribute='status')|list %}
+        setTimeout(function() {
+            location.reload();
+        }, 10000);
+    {% endif %}
+</script>
+{% endblock %} 

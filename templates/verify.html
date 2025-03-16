@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Internet Archive Downloader - Verify{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>Verify Downloaded Files</h2>
+        <p class="lead">
+            Verify that previously downloaded files match the MD5 hash values reported by Internet Archive.
+        </p>
+        <hr>
+        
+        <form method="POST" action="{{ url_for('verify') }}">
+            {{ form.csrf_token }}
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Verification Options</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="{{ form.data_folders.id }}" class="form-label">
+                                    {{ form.data_folders.label.text }}
+                                </label>
+                                {{ form.data_folders(class="form-control", placeholder="e.g. downloads/space_videos") }}
+                                <div class="form-text">
+                                    Space-separated list of folders containing downloaded files
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.identifiers.id }}" class="form-label">
+                                    {{ form.identifiers.label.text }}
+                                </label>
+                                {{ form.identifiers(class="form-control", placeholder="e.g. gov.archives.arc.1155023 TourTheInternationalSpaceStation") }}
+                                <div class="form-text">
+                                    Optional: Space-separated list of Internet Archive identifiers to verify
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.file_filters.id }}" class="form-label">
+                                    {{ form.file_filters.label.text }}
+                                </label>
+                                {{ form.file_filters(class="form-control", placeholder="e.g. mp4 mpeg jpg") }}
+                                <div class="form-text">
+                                    Optional: Only verify files containing these strings (space separated)
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                {{ form.invert_file_filtering(class="form-check-input") }}
+                                <label class="form-check-label" for="{{ form.invert_file_filtering.id }}">
+                                    {{ form.invert_file_filtering.label.text }}
+                                </label>
+                                <div class="form-text">
+                                    If checked, files matching filters will be excluded from verification
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 form-check">
+                                {{ form.no_paths(class="form-check-input") }}
+                                <label class="form-check-label" for="{{ form.no_paths.id }}">
+                                    {{ form.no_paths.label.text }}
+                                </label>
+                                <div class="form-text">
+                                    If checked, only verify that files exist somewhere in the folder, ignoring their paths
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 
