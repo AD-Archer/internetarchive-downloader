@@ -10,7 +10,6 @@ services:
     volumes:
       - ./ia_downloader_logs:/app/ia_downloader_logs
       - /mnt/jellyfin:/jellyfin
-      - /mnt/jellyfin/downloads:/downloads
       - /mnt/jellyfin/downloads:/app/downloads
     environment:
       - SECRET_KEY=change_this_in_production
@@ -26,7 +25,7 @@ services:
     volumes:
       - ./ia_downloader_logs:/app/ia_downloader_logs
       - /mnt/jellyfin:/jellyfin
-      - /mnt/jellyfin/downloads:/downloads
+      - /mnt/jellyfin/downloads:/app/downloads
     environment:
       - SECRET_KEY=change_this_in_production
     restart: unless-stopped 

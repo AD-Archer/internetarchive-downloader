@@ -1,4 +1,6 @@
-# Internet Archive Downloader
+# Internet Archive Downloader (Forked by ad-archer)
+
+This is a fork of the original Internet Archive Downloader, maintained by [ad-archer](https://github.com/ad-archer).
 
 This Python application uses multithreading and multiprocessing in conjunction with the [Internet Archive Python Library](https://archive.org/services/docs/api/internetarchive/) to provide bulk downloads of files associated with Internet Archive ([archive.org](https://archive.org/)) items and collections, with optional interrupted download resumption and file hash verification. Wayback Machine ([web.archive.org](https://web.archive.org/)) pages are not supported by this application.
 
@@ -32,9 +34,19 @@ uv pip install -r requirements.txt
 
 This application has been tested with macOS 11.6 (using Python >= 3.7 installed using [Homebrew](https://brew.sh/)), Ubuntu 20.04, and Windows 10 20H2.
 
+### Docker Deployment
+
+This fork includes Docker support for easy deployment. Use the provided docker-compose.yml file to run both frontend and backend services:
+
+```bash
+docker-compose up -d
+```
+
+The web interface will be available at http://localhost:9123/
+
 ### Web Interface
 
-To start the web interface, run:
+To start the web interface without Docker, run:
 
 ```
 python app.py
@@ -185,6 +197,15 @@ Full uninstallation can be achieved by:
 ## Contributing
 
 If you would like to contribute, please fork the repository and use a feature branch. Pull requests are warmly welcome.
+
+## About this fork
+
+This fork is maintained by [ad-archer](https://github.com/ad-archer) and includes several improvements over the original:
+
+- Docker support for easy deployment
+- Updated dependency management
+- Fixed download path handling
+- Various bug fixes and performance improvements
 
 ## Licensing
 
