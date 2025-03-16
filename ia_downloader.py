@@ -1187,7 +1187,18 @@ def download(
             
             # Count files that match our filters
             filtered_files_count = 0
-            for ia_file in item.files:
+            # Handle both live_item.files and cached_item.item_metadata["files"]
+            item_files = []
+            if isinstance(item, CacheDict):
+                if "files" in item.item_metadata:
+                    item_files = item.item_metadata["files"]
+            else:
+                if hasattr(item, 'files'):
+                    item_files = item.files
+                elif hasattr(item, 'item_metadata') and "files" in item.item_metadata:
+                    item_files = item.item_metadata["files"]
+            
+            for ia_file in item_files:
                 ia_file_name = ia_file.get("name", "")
                 # Skip files that don't match our filters
                 if file_filters:
