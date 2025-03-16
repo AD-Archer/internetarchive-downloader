@@ -7,16 +7,23 @@ import threading
 import queue
 import datetime
 import json
+import argparse
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_wtf import FlaskForm
 from wtforms import StringField, BooleanField, IntegerField, TextAreaField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Optional, NumberRange
 import ia_downloader
 
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Internet Archive Downloader')
+parser.add_argument('--download-dir', dest='download_dir', default='downloads',
+                    help='Directory to store downloads (default: downloads)')
+args = parser.parse_args()
+
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-for-testing')
-app.config['UPLOAD_FOLDER'] = 'downloads'
+app.config['UPLOAD_FOLDER'] = args.download_dir
 app.config['LOG_FOLDER'] = 'ia_downloader_logs'
 
 # Create necessary folders
@@ -38,7 +45,7 @@ class DownloadForm(FlaskForm):
     """Form for downloading Internet Archive items"""
     identifiers = TextAreaField('Internet Archive Identifiers (one per line)', validators=[Optional()])
     search_terms = TextAreaField('Search Terms (one per line)', validators=[Optional()])
-    output_folder = StringField('Output Folder', validators=[DataRequired()], default='downloads')
+    output_folder = StringField('Output Folder', validators=[DataRequired()], default=os.path.basename(app.config['UPLOAD_FOLDER']))
     thread_count = IntegerField('Thread Count', validators=[NumberRange(min=1, max=5)], default=3)
     verify = BooleanField('Verify Downloads', default=True)
     resume = BooleanField('Resume Interrupted Downloads', default=True)
@@ -52,7 +59,7 @@ class DownloadForm(FlaskForm):
 
 class VerifyForm(FlaskForm):
     """Form for verifying downloaded Internet Archive items"""
-    data_folders = StringField('Data Folders (space separated)', validators=[DataRequired()], default='downloads')
+    data_folders = StringField('Data Folders (space separated)', validators=[DataRequired()], default=os.path.basename(app.config['UPLOAD_FOLDER']))
     identifiers = StringField('Internet Archive Identifiers (space separated)', validators=[Optional()])
     file_filters = StringField('File Filters (space separated)', validators=[Optional()])
     invert_file_filtering = BooleanField('Invert File Filtering', default=False)
@@ -472,6 +479,10 @@ def view_log(filename):
     return render_template('view_log.html', filename=filename, content=content)
 
 if __name__ == '__main__':
+    # Print information about the download directory
+    print(f"Internet Archive Downloader starting...")
+    print(f"Downloads will be saved to: {os.path.abspath(app.config['UPLOAD_FOLDER'])}")
+    
     # In production, the app will be behind a proxy/container
     # so we bind to 0.0.0.0 to allow external access
     app.run(host='0.0.0.0', port=9123, debug=os.environ.get('FLASK_DEBUG', 'False').lower() == 'true') 

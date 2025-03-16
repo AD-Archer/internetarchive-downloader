@@ -8,12 +8,15 @@ show_help() {
     echo "Options:"
     echo "  -d, --docker     Run using Docker (requires Docker and docker-compose)"
     echo "  -l, --local      Run locally (default)"
+    echo "  -o, --output     Specify custom download directory (default: ./downloads)"
     echo "  -h, --help       Show this help message"
     echo ""
 }
 
 # Default to local mode
 RUN_MODE="local"
+# Default download directory
+DOWNLOAD_DIR="./downloads"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -25,6 +28,10 @@ while [[ $# -gt 0 ]]; do
         -l|--local)
             RUN_MODE="local"
             shift
+            ;;
+        -o|--output)
+            DOWNLOAD_DIR="$2"
+            shift 2
             ;;
         -h|--help)
             show_help
@@ -87,11 +94,11 @@ else
     uv pip install -r requirements.txt
 
     # Create necessary directories
-    mkdir -p downloads ia_downloader_logs/logs ia_downloader_logs/cache
+    mkdir -p "$DOWNLOAD_DIR" ia_downloader_logs/logs ia_downloader_logs/cache
 
     # Run the application
     echo "Starting Internet Archive Downloader web interface..."
-    echo "Downloads will be saved to the 'downloads' directory in the current folder"
-    echo "Open your browser and navigate to http://127.0.0.1:5000/"
-    python app.py 
+    echo "Downloads will be saved to: $DOWNLOAD_DIR"
+    echo "Open your browser and navigate to http://127.0.0.1:9123/"
+    python app.py --download-dir "$DOWNLOAD_DIR"
 fi 
