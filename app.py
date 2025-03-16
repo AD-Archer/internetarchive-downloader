@@ -71,6 +71,14 @@ def download_worker():
             task_id = task['id']
             with status_lock:
                 download_status[task_id]['status'] = 'running'
+                # Initialize progress tracking
+                download_status[task_id]['progress'] = {
+                    'total_files': 0,
+                    'completed_files': 0,
+                    'current_file': None,
+                    'current_file_progress': 0,
+                    'current_file_size': 0
+                }
             
             try:
                 # Set up hash file if needed
@@ -84,6 +92,11 @@ def download_worker():
                 # Process search terms
                 if task.get('search_terms'):
                     for search in task['search_terms']:
+                        # Check if task has been stopped
+                        with status_lock:
+                            if download_status[task_id]['status'] == 'stopped':
+                                break
+                                
                         search_results = ia_downloader.get_identifiers_from_search_term(
                             search=search,
                             cache_parent_folder=os.path.join(app.config['LOG_FOLDER'], 'cache'),
@@ -104,7 +117,11 @@ def download_worker():
                 
                 # Process each identifier
                 for identifier in identifiers:
+                    # Check if task has been stopped
                     with status_lock:
+                        if download_status[task_id]['status'] == 'stopped':
+                            break
+                            
                         download_status[task_id]['current_item'] = identifier
                     
                     ia_downloader.download(
@@ -118,19 +135,26 @@ def download_worker():
                         file_filters=task.get('file_filters'),
                         invert_file_filtering=task.get('invert_file_filtering', False),
                         cache_parent_folder=os.path.join(app.config['LOG_FOLDER'], 'cache'),
-                        cache_refresh=task.get('cache_refresh', False)
+                        cache_refresh=task.get('cache_refresh', False),
+                        task_id=task_id,  # Pass task_id for progress tracking
+                        status_lock=status_lock,  # Pass status_lock for thread-safe updates
+                        download_status=download_status  # Pass download_status for updates
                     )
                 
                 if hash_file_handler:
                     hash_file_handler.close()
                 
                 with status_lock:
-                    download_status[task_id]['status'] = 'completed'
+                    # Only mark as completed if it wasn't stopped
+                    if download_status[task_id]['status'] != 'stopped':
+                        download_status[task_id]['status'] = 'completed'
                     download_status[task_id]['end_time'] = datetime.datetime.now().isoformat()
             
             except Exception as e:
                 with status_lock:
-                    download_status[task_id]['status'] = 'failed'
+                    # Only mark as failed if it wasn't stopped
+                    if download_status[task_id]['status'] != 'stopped':
+                        download_status[task_id]['status'] = 'failed'
                     download_status[task_id]['errors'].append(str(e))
                     download_status[task_id]['end_time'] = datetime.datetime.now().isoformat()
             
@@ -328,6 +352,26 @@ def api_status(task_id):
         return jsonify({'error': 'Task not found'}), 404
     
     return jsonify(task)
+
+@app.route('/api/stop/<task_id>', methods=['POST'])
+def api_stop_task(task_id):
+    """API endpoint for stopping a task"""
+    with status_lock:
+        task = download_status.get(task_id)
+        
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        
+        # Only allow stopping tasks that are running or queued
+        if task['status'] not in ['running', 'queued']:
+            return jsonify({'error': 'Task is not running or queued'}), 400
+        
+        # Mark the task as stopped
+        task['status'] = 'stopped'
+        task['end_time'] = datetime.datetime.now().isoformat()
+        
+    # Return success
+    return jsonify({'success': True, 'message': 'Task stopped successfully'})
 
 @app.route('/downloads/<path:filename>')
 def download_file(filename):

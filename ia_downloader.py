@@ -18,6 +18,7 @@ import signal
 import sys
 import time
 import typing
+import fnmatch
 
 dark_grey = "\x1b[90;20m"
 bold_grey = "\x1b[37;1m"
@@ -388,6 +389,9 @@ def file_download(
         int,
         typing.Optional[typing.Tuple[int, int]],
         typing.Optional[int],
+        typing.Optional[str],
+        typing.Optional[object],
+        typing.Optional[dict],
     ]
 ) -> None:
     """Called as separate threads from the download function; takes one of the files to be
@@ -408,6 +412,9 @@ def file_download(
         split_count,
         bytes_range,
         chunk_number,
+        task_id,
+        status_lock,
+        download_status,
     ) = download_details
     start_time = datetime.datetime.now()
     file_size_split_limit = 10485760  # 10MB
@@ -419,7 +426,14 @@ def file_download(
         dest_file_path += ".{}".format(chunk_number)
         dest_file_name = os.path.basename(dest_file_path)
         expected_file_size = bytes_range[1] - bytes_range[0] + 1
-
+    
+    # Update progress to show current file
+    if task_id and status_lock and download_status and chunk_number is None:
+        with status_lock:
+            download_status[task_id]['progress']['current_file'] = ia_file_name
+            download_status[task_id]['progress']['current_file_size'] = expected_file_size
+            download_status[task_id]['progress']['current_file_progress'] = 0
+    
     # If the destination file path exists already (i.e. file has already been (at least partially)
     # downloaded), but the file size doesn't match expectations (i.e. download was incomplete),
     # either re-download from scratch or attempt resume, depending on resume_flag argument
@@ -436,6 +450,10 @@ def file_download(
                     dest_file_name,
                     dest_file_path,
                 )
+                # Update progress for skipped files
+                if task_id and status_lock and download_status:
+                    with status_lock:
+                        download_status[task_id]['progress']['completed_files'] += 1
                 return
             else:
                 if initial_file_size < expected_file_size:
@@ -449,6 +467,10 @@ def file_download(
                             dest_file_path,
                             (1 - (initial_file_size / expected_file_size)) * 100,
                         )
+                        # Update progress with initial file size for resumed downloads
+                        if task_id and status_lock and download_status and chunk_number is None:
+                            with status_lock:
+                                download_status[task_id]['progress']['current_file_progress'] = initial_file_size
 
                     else:
                         log.info(
@@ -574,6 +596,9 @@ def file_download(
                     1,  # split_count
                     (lower_bytes_range, upper_bytes_range),
                     chunk_counter,
+                    task_id,  # task_id for progress tracking
+                    status_lock,  # status_lock for thread-safe updates
+                    download_status  # download_status for updates
                 )
             )
             chunk_sizes[chunk_counter] = upper_bytes_range - lower_bytes_range + 1
@@ -799,11 +824,18 @@ def file_download(
                     if new_response.status_code == 200 or new_response.status_code == 206:
                         file_download_write_block_size = 1000000
                         with open(dest_file_path, file_write_mode) as file_handler:
+                            downloaded_size = partial_file_size
                             for download_chunk in new_response.iter_content(
                                 chunk_size=file_download_write_block_size
                             ):
                                 if download_chunk:
                                     file_handler.write(download_chunk)
+                                    downloaded_size += len(download_chunk)
+                                    
+                                    # Update progress
+                                    if task_id and status_lock and download_status and chunk_number is None:
+                                        with status_lock:
+                                            download_status[task_id]['progress']['current_file_progress'] = downloaded_size
 
                         try:
                             if (
@@ -970,6 +1002,15 @@ def file_download(
         if expected_file_size > 1048576  # 1MB; seems inaccurate for files beneath this size
         else "",
     )
+    
+    # Update progress for completed files
+    if task_id and status_lock and download_status and chunk_number is None:
+        with status_lock:
+            download_status[task_id]['progress']['completed_files'] += 1
+            download_status[task_id]['progress']['current_file'] = None
+            download_status[task_id]['progress']['current_file_size'] = 0
+            download_status[task_id]['progress']['current_file_progress'] = 0
+    
     # If user has opted to verify downloads, add the task to the hash_pool
     if chunk_number is None:  # Only hash if we're in a thread that isn't downloading a file chunk
         if hash_pool is not None:
@@ -993,6 +1034,9 @@ def download(
     invert_file_filtering: bool,
     cache_parent_folder: str,
     cache_refresh: bool,
+    task_id: typing.Optional[str] = None,
+    status_lock: typing.Optional[object] = None,
+    download_status: typing.Optional[dict] = None
 ) -> None:
     """Download files associated with an Internet Archive identifier"""
     log = logging.getLogger(__name__)
@@ -1127,7 +1171,36 @@ def download(
     item_filtered_files_size = 0
 
     item = live_item if live_item is not None else cached_item
-
+    
+    # Update total files count for progress tracking
+    if task_id and status_lock and download_status:
+        with status_lock:
+            # Initialize progress tracking if not already done
+            if 'progress' not in download_status[task_id]:
+                download_status[task_id]['progress'] = {
+                    'total_files': 0,
+                    'completed_files': 0,
+                    'current_file': None,
+                    'current_file_size': 0,
+                    'current_file_progress': 0
+                }
+            
+            # Count files that match our filters
+            filtered_files_count = 0
+            for ia_file in item.files:
+                ia_file_name = ia_file.get("name", "")
+                # Skip files that don't match our filters
+                if file_filters:
+                    if invert_file_filtering:
+                        if any(fnmatch.fnmatch(ia_file_name.lower(), pattern.lower()) for pattern in file_filters):
+                            continue
+                    else:
+                        if not any(fnmatch.fnmatch(ia_file_name.lower(), pattern.lower()) for pattern in file_filters):
+                            continue
+                filtered_files_count += 1
+            
+            download_status[task_id]['progress']['total_files'] += filtered_files_count
+    
     if item is not None and "files" in item.item_metadata:
         # Create cache folder for item if it doesn't already exist
         pathlib.Path(cache_folder).mkdir(parents=True, exist_ok=True)
@@ -1190,6 +1263,9 @@ def download(
                     split_count,
                     None,  # bytes_range
                     None,  # chunk_number
+                    task_id,  # task_id for progress tracking
+                    status_lock,  # status_lock for thread-safe updates
+                    download_status  # download_status for updates
                 )
             )
 
@@ -2007,6 +2083,9 @@ def main() -> None:
                     invert_file_filtering=args.invertfilefiltering,
                     cache_parent_folder=os.path.join(args.logfolder, log_subfolders[1]),
                     cache_refresh=args.cacherefresh,
+                    task_id="download_{}".format(identifier),
+                    status_lock=None,
+                    download_status=None
                 )
 
             if hashfile_file_handler is not None:

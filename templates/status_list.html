@@ -21,6 +21,7 @@
                             <th>Start Time</th>
                             <th>End Time</th>
                             <th>Items</th>
+                            <th>Progress</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -37,6 +38,8 @@
                                         <span class="badge bg-success">Completed</span>
                                     {% elif task.status == 'failed' %}
                                         <span class="badge bg-danger">Failed</span>
+                                    {% elif task.status == 'stopped' %}
+                                        <span class="badge bg-warning">Stopped</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ task.start_time.split('T')[0] }} {{ task.start_time.split('T')[1].split('.')[0] }}</td>
@@ -56,7 +59,31 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% if task.status == 'running' and task.progress %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" 
+                                                 style="width: {% if task.progress.total_files > 0 %}{{ (task.progress.completed_files / task.progress.total_files) * 100 }}{% else %}0{% endif %}%">
+                                                {{ task.progress.completed_files }} / {{ task.progress.total_files }}
+                                            </div>
+                                        </div>
+                                    {% elif task.status == 'completed' %}
+                                        <span class="text-success">Completed</span>
+                                    {% elif task.status == 'failed' %}
+                                        <span class="text-danger">Failed</span>
+                                    {% elif task.status == 'stopped' %}
+                                        <span class="text-warning">Stopped</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
                                     <a href="{{ url_for('status', task_id=task_id) }}" class="btn btn-sm btn-primary">Details</a>
+                                    {% if task.status == 'running' or task.status == 'queued' %}
+                                        <button class="btn btn-sm btn-danger stop-button" data-task-id="{{ task_id }}">
+                                            <i class="bi bi-stop-fill"></i> Stop
+                                        </button>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}
@@ -78,11 +105,52 @@
 
 {% block scripts %}
 <script>
-    // Auto-refresh the page every 10 seconds if there are running tasks
-    {% if tasks and 'running' in tasks.values()|map(attribute='status')|list %}
-        setTimeout(function() {
-            location.reload();
-        }, 10000);
-    {% endif %}
+    // Function to stop a task
+    function stopTask(taskId) {
+        if (confirm('Are you sure you want to stop this download task?')) {
+            fetch(`/api/stop/${taskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Reload the page to show updated status
+                    location.reload();
+                } else {
+                    alert('Failed to stop task: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping task:', error);
+                alert('Error stopping task: ' + error.message);
+            });
+        }
+    }
+
+    // Set up event listeners for stop buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        const stopButtons = document.querySelectorAll('.stop-button');
+        stopButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const taskId = this.getAttribute('data-task-id');
+                stopTask(taskId);
+            });
+        });
+        
+        // Auto-refresh the page every 10 seconds if there are running tasks
+        {% if tasks and 'running' in tasks.values()|map(attribute='status')|list %}
+            setTimeout(function() {
+                location.reload();
+            }, 10000);
+        {% endif %}
+    });
 </script>
 {% endblock %} 

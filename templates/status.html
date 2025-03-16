@@ -29,8 +29,17 @@
                                 <span class="badge bg-success">Completed</span>
                             {% elif task.status == 'failed' %}
                                 <span class="badge bg-danger">Failed</span>
+                            {% elif task.status == 'stopped' %}
+                                <span class="badge bg-warning">Stopped</span>
                             {% endif %}
                             </span>
+                            
+                            <!-- Stop button - only show for running or queued tasks -->
+                            {% if task.status == 'running' or task.status == 'queued' %}
+                            <button id="stop-button" class="btn btn-sm btn-danger ms-2">
+                                <i class="bi bi-stop-fill"></i> Stop
+                            </button>
+                            {% endif %}
                         </div>
                         
                         <div class="mb-3">
@@ -96,6 +105,53 @@
             </div>
         </div>
         
+        <!-- Download Progress Section -->
+        <div class="card mb-4" id="progress-container" {% if task.status != 'running' %}style="display: none;"{% endif %}>
+            <div class="card-header bg-primary text-white">
+                <h5>Download Progress</h5>
+            </div>
+            <div class="card-body">
+                <!-- Overall Progress -->
+                <div class="mb-3">
+                    <strong>Files Downloaded:</strong>
+                    <span id="files-progress">
+                        {% if task.progress %}
+                            {{ task.progress.completed_files }} / {{ task.progress.total_files }}
+                        {% else %}
+                            0 / 0
+                        {% endif %}
+                    </span>
+                    <div class="progress mt-2">
+                        <div id="overall-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: {% if task.progress and task.progress.total_files > 0 %}{{ (task.progress.completed_files / task.progress.total_files) * 100 }}{% else %}0{% endif %}%">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Current File Progress -->
+                <div class="mb-3" id="current-file-container" {% if not task.progress or not task.progress.current_file %}style="display: none;"{% endif %}>
+                    <strong>Current File:</strong>
+                    <span id="current-file">
+                        {% if task.progress and task.progress.current_file %}
+                            {{ task.progress.current_file }}
+                        {% endif %}
+                    </span>
+                    <div class="progress mt-2">
+                        <div id="file-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: {% if task.progress and task.progress.current_file_size > 0 %}{{ (task.progress.current_file_progress / task.progress.current_file_size) * 100 }}{% else %}0{% endif %}%">
+                        </div>
+                    </div>
+                    <small id="file-progress-text" class="text-muted">
+                        {% if task.progress and task.progress.current_file_size > 0 %}
+                            {{ (task.progress.current_file_progress / 1024 / 1024) | round(2) }} MB / {{ (task.progress.current_file_size / 1024 / 1024) | round(2) }} MB
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        
         <div class="card mb-4" id="errors-container" {% if not task.errors %}style="display: none;"{% endif %}>
             <div class="card-header bg-danger text-white">
                 <h5>Errors</h5>
@@ -136,6 +192,17 @@
         return duration || '0 seconds';
     }
     
+    // Function to format file size
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
     // Function to update the UI with task status
     function updateTaskStatus(data) {
         // Update status badge
@@ -148,8 +215,20 @@
             statusBadge = '<span class="badge bg-success">Completed</span>';
         } else if (data.status === 'failed') {
             statusBadge = '<span class="badge bg-danger">Failed</span>';
+        } else if (data.status === 'stopped') {
+            statusBadge = '<span class="badge bg-warning">Stopped</span>';
         }
         document.getElementById('status-badge').innerHTML = statusBadge;
+        
+        // Show/hide stop button based on status
+        const stopButton = document.getElementById('stop-button');
+        if (stopButton) {
+            if (data.status === 'running' || data.status === 'queued') {
+                stopButton.style.display = 'inline-block';
+            } else {
+                stopButton.style.display = 'none';
+            }
+        }
         
         // Update current item if available
         if (data.current_item) {
@@ -167,6 +246,42 @@
             const duration = calculateDuration(data.start_time, data.end_time);
             document.getElementById('duration').textContent = duration;
             document.getElementById('duration-container').style.display = 'block';
+        }
+        
+        // Update progress if available
+        if (data.progress) {
+            // Show progress container if task is running
+            document.getElementById('progress-container').style.display = data.status === 'running' ? 'block' : 'none';
+            
+            // Update overall progress
+            document.getElementById('files-progress').textContent = `${data.progress.completed_files} / ${data.progress.total_files}`;
+            
+            // Calculate percentage for overall progress
+            let overallPercentage = 0;
+            if (data.progress.total_files > 0) {
+                overallPercentage = (data.progress.completed_files / data.progress.total_files) * 100;
+            }
+            document.getElementById('overall-progress-bar').style.width = `${overallPercentage}%`;
+            
+            // Update current file progress if available
+            if (data.progress.current_file) {
+                document.getElementById('current-file').textContent = data.progress.current_file;
+                document.getElementById('current-file-container').style.display = 'block';
+                
+                // Calculate percentage for file progress
+                let filePercentage = 0;
+                if (data.progress.current_file_size > 0) {
+                    filePercentage = (data.progress.current_file_progress / data.progress.current_file_size) * 100;
+                }
+                document.getElementById('file-progress-bar').style.width = `${filePercentage}%`;
+                
+                // Update file progress text
+                const downloadedSize = formatFileSize(data.progress.current_file_progress);
+                const totalSize = formatFileSize(data.progress.current_file_size);
+                document.getElementById('file-progress-text').textContent = `${downloadedSize} / ${totalSize}`;
+            } else {
+                document.getElementById('current-file-container').style.display = 'none';
+            }
         }
         
         // Update errors if any
@@ -209,6 +324,40 @@
             });
     }
     
+    // Function to stop the download task
+    function stopTask() {
+        if (confirm('Are you sure you want to stop this download task?')) {
+            fetch('/api/stop/{{ task_id }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Update UI immediately to show stopped status
+                    document.getElementById('status-badge').innerHTML = '<span class="badge bg-warning">Stopped</span>';
+                    document.getElementById('stop-button').style.display = 'none';
+                    
+                    // Fetch the latest status
+                    fetchTaskStatus();
+                } else {
+                    alert('Failed to stop task: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping task:', error);
+                alert('Error stopping task: ' + error.message);
+            });
+        }
+    }
+    
     // Start polling for status updates when the page loads
     document.addEventListener('DOMContentLoaded', function() {
         // Calculate initial duration if end time is available
@@ -216,6 +365,12 @@
             const duration = calculateDuration('{{ task.start_time }}', '{{ task.end_time }}');
             document.getElementById('duration').textContent = duration;
         {% endif %}
+        
+        // Set up stop button event listener
+        const stopButton = document.getElementById('stop-button');
+        if (stopButton) {
+            stopButton.addEventListener('click', stopTask);
+        }
         
         // Start polling if task is running or queued
         {% if task.status == 'running' or task.status == 'queued' %}
