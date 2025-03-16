@@ -31,6 +31,8 @@ download_queue = queue.Queue()
 download_status = {}
 # Lock for thread-safe operations
 status_lock = threading.Lock()
+# Worker thread reference
+worker_thread = None
 
 class DownloadForm(FlaskForm):
     """Form for downloading Internet Archive items"""
@@ -60,82 +62,98 @@ class VerifyForm(FlaskForm):
 def download_worker():
     """Worker thread to process download tasks from the queue"""
     while True:
-        task = download_queue.get()
-        if task is None:
-            break
-        
-        task_id = task['id']
-        with status_lock:
-            download_status[task_id]['status'] = 'running'
-        
         try:
-            # Set up hash file if needed
-            hash_file_handler = None
-            if task.get('hash_file'):
-                hash_file_handler = open(task['hash_file'], 'w', encoding='utf-8')
+            # Get task with a timeout to allow for graceful shutdown
+            task = download_queue.get(timeout=60)
+            if task is None:
+                break
             
-            # Process identifiers
-            identifiers = task.get('identifiers', [])
+            task_id = task['id']
+            with status_lock:
+                download_status[task_id]['status'] = 'running'
             
-            # Process search terms
-            if task.get('search_terms'):
-                for search in task['search_terms']:
-                    search_results = ia_downloader.get_identifiers_from_search_term(
-                        search=search,
+            try:
+                # Set up hash file if needed
+                hash_file_handler = None
+                if task.get('hash_file'):
+                    hash_file_handler = open(task['hash_file'], 'w', encoding='utf-8')
+                
+                # Process identifiers
+                identifiers = task.get('identifiers', [])
+                
+                # Process search terms
+                if task.get('search_terms'):
+                    for search in task['search_terms']:
+                        search_results = ia_downloader.get_identifiers_from_search_term(
+                            search=search,
+                            cache_parent_folder=os.path.join(app.config['LOG_FOLDER'], 'cache'),
+                            cache_refresh=task.get('cache_refresh', False)
+                        )
+                        identifiers.extend(search_results)
+                
+                # Set credentials if provided
+                if task.get('credentials'):
+                    try:
+                        ia_downloader.internetarchive.configure(
+                            task['credentials'][0], 
+                            task['credentials'][1]
+                        )
+                    except Exception as e:
+                        with status_lock:
+                            download_status[task_id]['errors'].append(f"Authentication error: {str(e)}")
+                
+                # Process each identifier
+                for identifier in identifiers:
+                    with status_lock:
+                        download_status[task_id]['current_item'] = identifier
+                    
+                    ia_downloader.download(
+                        identifier=identifier,
+                        output_folder=task['output_folder'],
+                        hash_file=hash_file_handler,
+                        thread_count=task.get('thread_count', 3),
+                        resume_flag=task.get('resume', True),
+                        verify_flag=task.get('verify', True),
+                        split_count=task.get('split_count', 1),
+                        file_filters=task.get('file_filters'),
+                        invert_file_filtering=task.get('invert_file_filtering', False),
                         cache_parent_folder=os.path.join(app.config['LOG_FOLDER'], 'cache'),
                         cache_refresh=task.get('cache_refresh', False)
                     )
-                    identifiers.extend(search_results)
-            
-            # Set credentials if provided
-            if task.get('credentials'):
-                try:
-                    ia_downloader.internetarchive.configure(
-                        task['credentials'][0], 
-                        task['credentials'][1]
-                    )
-                except Exception as e:
-                    with status_lock:
-                        download_status[task_id]['errors'].append(f"Authentication error: {str(e)}")
-            
-            # Process each identifier
-            for identifier in identifiers:
-                with status_lock:
-                    download_status[task_id]['current_item'] = identifier
                 
-                ia_downloader.download(
-                    identifier=identifier,
-                    output_folder=task['output_folder'],
-                    hash_file=hash_file_handler,
-                    thread_count=task.get('thread_count', 3),
-                    resume_flag=task.get('resume', True),
-                    verify_flag=task.get('verify', True),
-                    split_count=task.get('split_count', 1),
-                    file_filters=task.get('file_filters'),
-                    invert_file_filtering=task.get('invert_file_filtering', False),
-                    cache_parent_folder=os.path.join(app.config['LOG_FOLDER'], 'cache'),
-                    cache_refresh=task.get('cache_refresh', False)
-                )
+                if hash_file_handler:
+                    hash_file_handler.close()
+                
+                with status_lock:
+                    download_status[task_id]['status'] = 'completed'
+                    download_status[task_id]['end_time'] = datetime.datetime.now().isoformat()
             
-            if hash_file_handler:
-                hash_file_handler.close()
+            except Exception as e:
+                with status_lock:
+                    download_status[task_id]['status'] = 'failed'
+                    download_status[task_id]['errors'].append(str(e))
+                    download_status[task_id]['end_time'] = datetime.datetime.now().isoformat()
             
-            with status_lock:
-                download_status[task_id]['status'] = 'completed'
-                download_status[task_id]['end_time'] = datetime.datetime.now().isoformat()
-        
+            finally:
+                download_queue.task_done()
+        except queue.Empty:
+            # Queue timeout - continue waiting
+            continue
         except Exception as e:
-            with status_lock:
-                download_status[task_id]['status'] = 'failed'
-                download_status[task_id]['errors'].append(str(e))
-                download_status[task_id]['end_time'] = datetime.datetime.now().isoformat()
-        
-        finally:
-            download_queue.task_done()
+            # Log any unexpected errors but keep the worker running
+            print(f"Unexpected error in download worker: {str(e)}")
+            continue
+
+def ensure_worker_thread():
+    """Ensure the worker thread is running, start it if needed"""
+    global worker_thread
+    
+    if worker_thread is None or not worker_thread.is_alive():
+        worker_thread = threading.Thread(target=download_worker, daemon=True)
+        worker_thread.start()
 
 # Start worker thread
-worker_thread = threading.Thread(target=download_worker, daemon=True)
-worker_thread.start()
+ensure_worker_thread()
 
 @app.route('/')
 def index():
@@ -145,6 +163,9 @@ def index():
 @app.route('/download', methods=['GET', 'POST'])
 def download():
     """Handle download form submission"""
+    # Ensure worker thread is running
+    ensure_worker_thread()
+    
     form = DownloadForm()
     
     if form.validate_on_submit():
@@ -152,7 +173,25 @@ def download():
         task_id = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Parse identifiers and search terms
-        identifiers = [id.strip() for id in form.identifiers.data.split('\n') if id.strip()]
+        raw_identifiers = [id.strip() for id in form.identifiers.data.split('\n') if id.strip()]
+        # Process URLs to extract proper identifiers
+        identifiers = []
+        for raw_id in raw_identifiers:
+            # If it's a URL, extract the identifier
+            if raw_id.startswith('http'):
+                # Extract identifier from URL like https://archive.org/details/identifier
+                parts = raw_id.split('/details/')
+                if len(parts) > 1:
+                    # Get the identifier part and remove any trailing parameters
+                    identifier = parts[1].split('?')[0].split('#')[0]
+                    identifiers.append(identifier)
+                else:
+                    # If we can't parse it, use as is
+                    identifiers.append(raw_id)
+            else:
+                # Not a URL, use as is
+                identifiers.append(raw_id)
+                
         search_terms = [term.strip() for term in form.search_terms.data.split('\n') if term.strip()]
         
         if not identifiers and not search_terms:
@@ -256,6 +295,9 @@ def verify():
 @app.route('/status')
 def status_list():
     """Show list of all download tasks"""
+    # Ensure worker thread is running
+    ensure_worker_thread()
+    
     with status_lock:
         tasks = {k: v for k, v in download_status.items()}
     
@@ -264,6 +306,9 @@ def status_list():
 @app.route('/status/<task_id>')
 def status(task_id):
     """Show status of a specific download task"""
+    # Ensure worker thread is running
+    ensure_worker_thread()
+    
     with status_lock:
         task = download_status.get(task_id)
     

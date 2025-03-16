@@ -20,6 +20,7 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <strong>Status:</strong>
+                            <span id="status-badge">
                             {% if task.status == 'queued' %}
                                 <span class="badge bg-secondary">Queued</span>
                             {% elif task.status == 'running' %}
@@ -29,51 +30,32 @@
                             {% elif task.status == 'failed' %}
                                 <span class="badge bg-danger">Failed</span>
                             {% endif %}
+                            </span>
                         </div>
                         
                         <div class="mb-3">
                             <strong>Start Time:</strong>
-                            {{ task.start_time.split('T')[0] }} {{ task.start_time.split('T')[1].split('.')[0] }}
+                            <span id="start-time">{{ task.start_time.split('T')[0] }} {{ task.start_time.split('T')[1].split('.')[0] }}</span>
                         </div>
                         
-                        {% if task.end_time %}
-                            <div class="mb-3">
-                                <strong>End Time:</strong>
-                                {{ task.end_time.split('T')[0] }} {{ task.end_time.split('T')[1].split('.')[0] }}
-                            </div>
-                            
-                            <div class="mb-3">
-                                <strong>Duration:</strong>
-                                {% set start = task.start_time.split('.')[0] %}
-                                {% set end = task.end_time.split('.')[0] %}
-                                <span id="duration">Calculating...</span>
-                                <script>
-                                    document.addEventListener('DOMContentLoaded', function() {
-                                        const start = new Date("{{ start }}");
-                                        const end = new Date("{{ end }}");
-                                        const diff = Math.abs(end - start) / 1000; // seconds
-                                        
-                                        const hours = Math.floor(diff / 3600);
-                                        const minutes = Math.floor((diff % 3600) / 60);
-                                        const seconds = Math.floor(diff % 60);
-                                        
-                                        let duration = '';
-                                        if (hours > 0) duration += hours + ' hour' + (hours > 1 ? 's' : '') + ' ';
-                                        if (minutes > 0) duration += minutes + ' minute' + (minutes > 1 ? 's' : '') + ' ';
-                                        if (seconds > 0) duration += seconds + ' second' + (seconds > 1 ? 's' : '');
-                                        
-                                        document.getElementById('duration').textContent = duration;
-                                    });
-                                </script>
-                            </div>
-                        {% endif %}
+                        <div class="mb-3" id="end-time-container" {% if not task.end_time %}style="display: none;"{% endif %}>
+                            <strong>End Time:</strong>
+                            <span id="end-time">
+                                {% if task.end_time %}
+                                    {{ task.end_time.split('T')[0] }} {{ task.end_time.split('T')[1].split('.')[0] }}
+                                {% endif %}
+                            </span>
+                        </div>
                         
-                        {% if task.current_item %}
-                            <div class="mb-3">
-                                <strong>Current Item:</strong>
-                                {{ task.current_item }}
-                            </div>
-                        {% endif %}
+                        <div class="mb-3" id="duration-container" {% if not task.end_time %}style="display: none;"{% endif %}>
+                            <strong>Duration:</strong>
+                            <span id="duration">Calculating...</span>
+                        </div>
+                        
+                        <div class="mb-3" id="current-item-container" {% if not task.current_item %}style="display: none;"{% endif %}>
+                            <strong>Current Item:</strong>
+                            <span id="current-item">{{ task.current_item }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -114,24 +96,23 @@
             </div>
         </div>
         
-        {% if task.errors %}
-            <div class="card mb-4">
-                <div class="card-header bg-danger text-white">
-                    <h5>Errors</h5>
-                </div>
-                <div class="card-body">
-                    <ul class="list-group">
-                        {% for error in task.errors %}
-                            <li class="list-group-item list-group-item-danger">{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
+        <div class="card mb-4" id="errors-container" {% if not task.errors %}style="display: none;"{% endif %}>
+            <div class="card-header bg-danger text-white">
+                <h5>Errors</h5>
             </div>
-        {% endif %}
+            <div class="card-body">
+                <ul class="list-group" id="errors-list">
+                    {% for error in task.errors %}
+                        <li class="list-group-item list-group-item-danger">{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
         
         <div class="mt-4">
             <a href="{{ url_for('status_list') }}" class="btn btn-secondary">Back to All Tasks</a>
             <a href="{{ url_for('download') }}" class="btn btn-primary">Start New Download</a>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Home</a>
         </div>
     </div>
 </div>
@@ -139,11 +120,107 @@
 
 {% block scripts %}
 <script>
-    // Auto-refresh the page every 5 seconds if the task is running
-    {% if task.status == 'running' %}
-        setTimeout(function() {
-            location.reload();
-        }, 5000);
-    {% endif %}
+    // Function to calculate duration between two dates
+    function calculateDuration(start, end) {
+        const diff = Math.abs(new Date(end) - new Date(start)) / 1000; // seconds
+        
+        const hours = Math.floor(diff / 3600);
+        const minutes = Math.floor((diff % 3600) / 60);
+        const seconds = Math.floor(diff % 60);
+        
+        let duration = '';
+        if (hours > 0) duration += hours + ' hour' + (hours > 1 ? 's' : '') + ' ';
+        if (minutes > 0) duration += minutes + ' minute' + (minutes > 1 ? 's' : '') + ' ';
+        if (seconds > 0) duration += seconds + ' second' + (seconds > 1 ? 's' : '');
+        
+        return duration || '0 seconds';
+    }
+    
+    // Function to update the UI with task status
+    function updateTaskStatus(data) {
+        // Update status badge
+        let statusBadge = '';
+        if (data.status === 'queued') {
+            statusBadge = '<span class="badge bg-secondary">Queued</span>';
+        } else if (data.status === 'running') {
+            statusBadge = '<span class="badge bg-primary">Running</span>';
+        } else if (data.status === 'completed') {
+            statusBadge = '<span class="badge bg-success">Completed</span>';
+        } else if (data.status === 'failed') {
+            statusBadge = '<span class="badge bg-danger">Failed</span>';
+        }
+        document.getElementById('status-badge').innerHTML = statusBadge;
+        
+        // Update current item if available
+        if (data.current_item) {
+            document.getElementById('current-item').textContent = data.current_item;
+            document.getElementById('current-item-container').style.display = 'block';
+        }
+        
+        // Update end time if available
+        if (data.end_time) {
+            const endTimeFormatted = data.end_time.split('T')[0] + ' ' + data.end_time.split('T')[1].split('.')[0];
+            document.getElementById('end-time').textContent = endTimeFormatted;
+            document.getElementById('end-time-container').style.display = 'block';
+            
+            // Calculate and update duration
+            const duration = calculateDuration(data.start_time, data.end_time);
+            document.getElementById('duration').textContent = duration;
+            document.getElementById('duration-container').style.display = 'block';
+        }
+        
+        // Update errors if any
+        if (data.errors && data.errors.length > 0) {
+            const errorsList = document.getElementById('errors-list');
+            errorsList.innerHTML = '';
+            
+            data.errors.forEach(error => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item list-group-item-danger';
+                li.textContent = error;
+                errorsList.appendChild(li);
+            });
+            
+            document.getElementById('errors-container').style.display = 'block';
+        }
+    }
+    
+    // Function to fetch task status via AJAX
+    function fetchTaskStatus() {
+        fetch('/api/status/{{ task_id }}')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                updateTaskStatus(data);
+                
+                // Continue polling if task is still running or queued
+                if (data.status === 'running' || data.status === 'queued') {
+                    setTimeout(fetchTaskStatus, 3000); // Poll every 3 seconds
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching task status:', error);
+                // Retry after a delay even if there was an error
+                setTimeout(fetchTaskStatus, 5000);
+            });
+    }
+    
+    // Start polling for status updates when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Calculate initial duration if end time is available
+        {% if task.end_time and task.start_time %}
+            const duration = calculateDuration('{{ task.start_time }}', '{{ task.end_time }}');
+            document.getElementById('duration').textContent = duration;
+        {% endif %}
+        
+        // Start polling if task is running or queued
+        {% if task.status == 'running' or task.status == 'queued' %}
+            fetchTaskStatus();
+        {% endif %}
+    });
 </script>
 {% endblock %} 

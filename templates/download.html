@@ -183,4 +183,23 @@
         </form>
     </div>
 </div>
+
+<!-- Add JavaScript for handling download status updates -->
+{% block scripts %}
+<script>
+    // Function to handle form submission and redirect to status page
+    document.addEventListener('DOMContentLoaded', function() {
+        const downloadForm = document.querySelector('form');
+        
+        downloadForm.addEventListener('submit', function(e) {
+            // Show loading indicator
+            const submitBtn = document.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+            submitBtn.disabled = true;
+            
+            // Form will submit normally, and Flask will handle the redirect
+        });
+    });
+</script>
+{% endblock %}
 {% endblock %} 
