@@ -40,6 +40,13 @@
                                 <i class="bi bi-stop-fill"></i> Stop
                             </button>
                             {% endif %}
+                            
+                            <!-- Restart button - only show for stopped tasks -->
+                            {% if task.status == 'stopped' %}
+                            <button id="restart-button" class="btn btn-sm btn-success ms-2">
+                                <i class="bi bi-play-fill"></i> Restart
+                            </button>
+                            {% endif %}
                         </div>
                         
                         <div class="mb-3">
@@ -345,6 +352,14 @@
                     document.getElementById('status-badge').innerHTML = '<span class="badge bg-warning">Stopped</span>';
                     document.getElementById('stop-button').style.display = 'none';
                     
+                    // Show restart button
+                    const restartButton = document.createElement('button');
+                    restartButton.id = 'restart-button';
+                    restartButton.className = 'btn btn-sm btn-success ms-2';
+                    restartButton.innerHTML = '<i class="bi bi-play-fill"></i> Restart';
+                    restartButton.addEventListener('click', restartTask);
+                    document.getElementById('status-badge').parentNode.appendChild(restartButton);
+                    
                     // Fetch the latest status
                     fetchTaskStatus();
                 } else {
@@ -354,6 +369,36 @@
             .catch(error => {
                 console.error('Error stopping task:', error);
                 alert('Error stopping task: ' + error.message);
+            });
+        }
+    }
+    
+    // Function to restart the download task
+    function restartTask() {
+        if (confirm('Are you sure you want to restart this download task?')) {
+            fetch('/api/restart/{{ task_id }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Redirect to the new task status page
+                    window.location.href = `/status/${data.new_task_id}`;
+                } else {
+                    alert('Failed to restart task: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error restarting task:', error);
+                alert('Error restarting task: ' + error.message);
             });
         }
     }
@@ -370,6 +415,12 @@
         const stopButton = document.getElementById('stop-button');
         if (stopButton) {
             stopButton.addEventListener('click', stopTask);
+        }
+        
+        // Set up restart button event listener
+        const restartButton = document.getElementById('restart-button');
+        if (restartButton) {
+            restartButton.addEventListener('click', restartTask);
         }
         
         // Start polling if task is running or queued

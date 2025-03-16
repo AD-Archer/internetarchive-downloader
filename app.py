@@ -370,8 +370,74 @@ def api_stop_task(task_id):
         task['status'] = 'stopped'
         task['end_time'] = datetime.datetime.now().isoformat()
         
+        # Add a message to errors list to indicate manual stop
+        if 'errors' not in task:
+            task['errors'] = []
+        task['errors'].append('Task was manually stopped by user')
+        
     # Return success
     return jsonify({'success': True, 'message': 'Task stopped successfully'})
+
+@app.route('/api/restart/<task_id>', methods=['POST'])
+def api_restart_task(task_id):
+    """API endpoint for restarting a stopped task"""
+    with status_lock:
+        task = download_status.get(task_id)
+        
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        
+        # Only allow restarting tasks that are stopped
+        if task['status'] != 'stopped':
+            return jsonify({'error': 'Task is not stopped'}), 400
+        
+        # Get the original task data
+        original_task_id = task_id
+        
+        # Create a new task ID
+        new_task_id = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # Create a new task with the same parameters
+        new_task = {
+            'id': new_task_id,
+            'identifiers': task.get('identifiers', []),
+            'search_terms': task.get('search_terms', []),
+            'output_folder': task.get('output_folder', os.path.join(app.config['UPLOAD_FOLDER'], 'default')),
+            'thread_count': task.get('thread_count', 3),
+            'verify': task.get('verify', True),
+            'resume': task.get('resume', True),
+            'split_count': task.get('split_count', 1),
+            'file_filters': task.get('file_filters'),
+            'invert_file_filtering': task.get('invert_file_filtering', False),
+            'credentials': task.get('credentials'),
+            'hash_file': os.path.join(app.config['LOG_FOLDER'], f"{new_task_id}_hashes.txt"),
+            'cache_refresh': task.get('cache_refresh', False)
+        }
+        
+        # Initialize status for the new task
+        download_status[new_task_id] = {
+            'status': 'queued',
+            'start_time': datetime.datetime.now().isoformat(),
+            'end_time': None,
+            'identifiers': task.get('identifiers', []),
+            'search_terms': task.get('search_terms', []),
+            'current_item': None,
+            'errors': [],
+            'restarted_from': original_task_id
+        }
+        
+        # Add task to queue
+        download_queue.put(new_task)
+        
+        # Ensure worker thread is running
+        ensure_worker_thread()
+        
+    return jsonify({
+        'success': True, 
+        'message': 'Task restarted successfully', 
+        'original_task_id': original_task_id,
+        'new_task_id': new_task_id
+    })
 
 @app.route('/downloads/<path:filename>')
 def download_file(filename):

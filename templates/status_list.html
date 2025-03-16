@@ -84,6 +84,11 @@
                                             <i class="bi bi-stop-fill"></i> Stop
                                         </button>
                                     {% endif %}
+                                    {% if task.status == 'stopped' %}
+                                        <button class="btn btn-sm btn-success restart-button" data-task-id="{{ task_id }}">
+                                            <i class="bi bi-play-fill"></i> Restart
+                                        </button>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}
@@ -134,6 +139,36 @@
             });
         }
     }
+    
+    // Function to restart a task
+    function restartTask(taskId) {
+        if (confirm('Are you sure you want to restart this download task?')) {
+            fetch(`/api/restart/${taskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Redirect to the new task status page
+                    window.location.href = `/status/${data.new_task_id}`;
+                } else {
+                    alert('Failed to restart task: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error restarting task:', error);
+                alert('Error restarting task: ' + error.message);
+            });
+        }
+    }
 
     // Set up event listeners for stop buttons
     document.addEventListener('DOMContentLoaded', function() {
@@ -142,6 +177,15 @@
             button.addEventListener('click', function() {
                 const taskId = this.getAttribute('data-task-id');
                 stopTask(taskId);
+            });
+        });
+        
+        // Set up event listeners for restart buttons
+        const restartButtons = document.querySelectorAll('.restart-button');
+        restartButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const taskId = this.getAttribute('data-task-id');
+                restartTask(taskId);
             });
         });
         
