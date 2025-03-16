@@ -319,4 +319,4 @@ def view_log(filename):
 if __name__ == '__main__':
     # In production, the app will be behind a proxy/container
     # so we bind to 0.0.0.0 to allow external access
-    app.run(host='0.0.0.0', port=9902, debug=os.environ.get('FLASK_DEBUG', 'False').lower() == 'true') 
+    app.run(host='0.0.0.0', port=9124, debug=os.environ.get('FLASK_DEBUG', 'False').lower() == 'true') 

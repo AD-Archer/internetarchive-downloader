@@ -1,10 +1,28 @@
 version: '3'
 
 services:
-  web:
-    build: .
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile.frontend
     ports:
-      - "9902:9902"
+      - "9123:9123"
+    volumes:
+      - ./ia_downloader_logs:/app/ia_downloader_logs
+      - /mnt/jellyfin:/jellyfin
+      - /mnt/jellyfin/downloads:/downloads
+      - /mnt/jellyfin/downloads:/app/downloads
+    environment:
+      - SECRET_KEY=change_this_in_production
+      - BACKEND_URL=http://backend:9124
+    restart: unless-stopped
+    
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "9124:9124"
     volumes:
       - ./ia_downloader_logs:/app/ia_downloader_logs
       - /mnt/jellyfin:/jellyfin
