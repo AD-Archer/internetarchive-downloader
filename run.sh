@@ -94,3 +94,4 @@ else
     echo "Downloads will be saved to the 'downloads' directory in the current folder"
     echo "Open your browser and navigate to http://127.0.0.1:5000/"
     python app.py 
+fi 
